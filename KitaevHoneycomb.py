@@ -107,7 +107,8 @@ def run_atomic(
         'svd_min': 1.e-10,
     },
     # control for the verbose output
-    verbose=1, 
+    verbose=1,
+    result_verbose=1, 
 ):
     """ 
         The fundamental function for running DMRG
@@ -134,11 +135,14 @@ def run_atomic(
     # initialize the model
     M = KitaevHoneycombModel(model_params)
     prod_state = ["up"] * (2*L) 
-    psi = MPS.from_product_state(
-        M.lat.mps_sites(), 
-        prod_state, 
-        bc=M.lat.bc_MPS,
-    )
+    if initial_psi == None:
+        psi = MPS.from_product_state(
+            M.lat.mps_sites(), 
+            prod_state, 
+            bc=M.lat.bc_MPS,
+        )
+    else:
+        psi = initial_psi.copy()
     
     #######################
     # set the parameters for the dmrg routine
@@ -146,7 +150,7 @@ def run_atomic(
         'start_env': 10,
         'mixer': mixer,
         'mixer_params': mixer_params,
-        
+
         'trunc_params': trunc_params,
         'max_E_err': max_E_err,
         'max_S_err': max_S_err,
