@@ -12,6 +12,16 @@ import tenpy
 from tenpy.models import lattice
 from tenpy.algorithms import dmrg
 
+# some api for the file operation
+import h5py
+from tenpy.tools import hdf5_io
+import os.path
+
+# functools
+from functools import wraps
+
+# path
+from pathlib import Path
 class KitaevHoneycombModel(CouplingMPOModel):
     """
         Defining the MPO for Kitaev Honeycomb
@@ -90,7 +100,7 @@ def run_atomic(
     dtype=float,
     ####### dmrg parameters #######
     initial_psi=None, # input psi
-    initial='random', 
+    initial='antiferro', 
     max_E_err=1.e-6, 
     max_S_err=1.e-4, 
     max_sweeps=200, 
@@ -128,13 +138,14 @@ def run_atomic(
         bc=bc,
         bc_MPS=bc_MPS,
         order=order,
+        shift=shift,
         dtype=dtype,
         )
 
     L = Lx*Ly # the number of unicells
     # initialize the model
     M = KitaevHoneycombModel(model_params)
-    prod_state = ["up"] * (2*L) 
+    prod_state = ["up", "down"] * L
     if initial_psi == None:
         psi = MPS.from_product_state(
             M.lat.mps_sites(), 
@@ -144,6 +155,10 @@ def run_atomic(
     else:
         psi = initial_psi.copy()
     
+    implemented_initial = ["antiferro"]
+    if initial not in implemented_initial:
+        raise NotImplementedError(f'Initial {initial} not yet implemented!')
+
     #######################
     # set the parameters for the dmrg routine
     dmrg_params = {
@@ -215,7 +230,9 @@ def run_atomic(
             Jx=Jx, 
             Jy=Jy, 
             Jz=Jz, 
-            L=L, 
+            Lx=Lx,
+            Ly=Ly,
+            shift=shift, 
             # dmrg parameters
             initial_psi=initial_psi,
             initial=initial,
@@ -225,3 +242,74 @@ def run_atomic(
         )
     )
     return result
+
+def naming(
+    # model parameters
+    chi=30,
+    Jx=1., 
+    Jy=1., 
+    Jz=0., 
+    L=4, 
+    ):
+    return "KitaevLadder"+"_chi_"+str(chi)+"_Jx_"+str(Jx)+"_Jy_"+str(Jy)+"_Jz_"+str(Jz)+"_L_"+str(L)
+
+def full_path(
+    # model parameters
+    chi=30,
+    Jx=1., 
+    Jy=1., 
+    Jz=0., 
+    L=4, 
+    prefix='data/', suffix='.h5',
+    **kwargs):
+    return prefix+naming(chi, Jx, Jy, Jz, L)+suffix
+    
+def save_after_run(run, folder_prefix='data/'):
+    """
+        Save data as .h5 files
+    """
+    @wraps(run)
+    def wrapper(*args, **kwargs):
+        # if there is no such folder, create another one; if exists, doesn't matter
+        Path(folder_prefix).mkdir(parents=True, exist_ok=True)
+        file_name = full_path(prefix=folder_prefix, **kwargs)
+        
+        # if the file already existed then don't do the computation again
+        if os.path.isfile(file_name):
+            print("This file already existed. Pass.")
+            return 0
+        else:
+            result = run(*args, **kwargs)
+            with h5py.File(file_name, 'w') as f:
+                hdf5_io.save_to_hdf5(f, result)
+                
+            return result
+    
+    return wrapper
+
+def load_data(
+    chi=30,
+    Jx=1., 
+    Jy=1., 
+    Jz=0., 
+    L=4, 
+    prefix='data/', 
+):
+    file_name = full_path(chi, Jx, Jy, Jz, L, prefix=prefix, suffix='.h5')
+    if not Path(file_name).exists():
+        return -1
+    with h5py.File(file_name, 'r') as f:
+        data = hdf5_io.load_from_hdf5(f)
+        return data
+def save_data(
+    result, 
+    chi=30,
+    Jx=1., 
+    Jy=1., 
+    Jz=0., 
+    L=4, 
+    prefix='data/', 
+):
+    file_name = full_path(chi, Jx, Jy, Jz, L, prefix=prefix, suffix='.h5')
+    with h5py.File(file_name, 'w') as f:
+        hdf5_io.save_to_hdf5(f, result)
