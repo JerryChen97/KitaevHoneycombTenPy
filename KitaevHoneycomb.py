@@ -147,6 +147,11 @@ def run_atomic(
     M = KitaevHoneycombModel(model_params)
     prod_state = ["up", "down"] * L
     if initial_psi == None:
+        implemented_initial = ["antiferro", "ferro"]
+        if initial not in implemented_initial:
+            raise NotImplementedError(f'Initial {initial} not yet implemented!')
+        if initial=='ferror':
+            prod_state = ["up"]*2*L
         psi = MPS.from_product_state(
             M.lat.mps_sites(), 
             prod_state, 
@@ -155,9 +160,6 @@ def run_atomic(
     else:
         psi = initial_psi.copy()
     
-    implemented_initial = ["antiferro"]
-    if initial not in implemented_initial:
-        raise NotImplementedError(f'Initial {initial} not yet implemented!')
 
     #######################
     # set the parameters for the dmrg routine
@@ -303,13 +305,16 @@ def load_data(
         return data
 def save_data(
     result, 
-    chi=30,
-    Jx=1., 
-    Jy=1., 
-    Jz=0., 
-    L=4, 
+    chi,
+    Jx, 
+    Jy, 
+    Jz, 
+    Lx, 
+    Ly,
+    shift,
     prefix='data/', 
 ):
-    file_name = full_path(chi, Jx, Jy, Jz, L, prefix=prefix, suffix='.h5')
-    with h5py.File(file_name, 'w') as f:
-        hdf5_io.save_to_hdf5(f, result)
+    file_name = prefix+f'KitaevHoneycomb_Jx_{Jx}_Jy_{Jy}_Jz_{Jz}_chi_{chi}_Lx_{Lx}_Ly_{Ly}_shift_{shift}.h5'
+    if not path.exists(file_name):
+        with h5py.File(file_name, 'w') as f:
+            hdf5_io.save_to_hdf5(f, result)
